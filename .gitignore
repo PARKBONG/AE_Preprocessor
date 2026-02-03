@@ -1,2 +1,5 @@
 *.wav
 *.png
+
+bin/
+obj/

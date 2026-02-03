@@ -37,9 +37,9 @@ namespace AE_Spectrogram
         static void Main(string[] args)
         {
             string baseDir = AppContext.BaseDirectory;
-            string configPath = Path.GetFullPath(Path.Combine(baseDir, "../config/Sensor_Interface/MicrophoneInterfaceConfig.xml"));
-            string inputRootDir = Path.GetFullPath(Path.Combine(baseDir, "../DB_kunkuk"));
-            string outputRootDir = Path.GetFullPath(Path.Combine(baseDir, "../CS_Output/spectrogram"));
+            string configPath = Path.Combine(baseDir, "config", "Sensor_Interface", "MicrophoneInterfaceConfig.xml");
+            string inputRootDir = Path.GetFullPath(Path.Combine(baseDir, "../../../../DB_kunkuk"));
+            string outputRootDir = Path.GetFullPath(Path.Combine(baseDir, "../../../../CS_Output/spectrogram"));
 
             if (!File.Exists(configPath))
             {
@@ -63,24 +63,47 @@ namespace AE_Spectrogram
                 string dirName = Path.GetFileName(subDir);
                 Console.WriteLine($"\n[Directory] {dirName} Processing...");
 
-                var wavFiles = Directory.GetFiles(subDir, "*.wav").OrderBy(f => f).ToList();
-                if (wavFiles.Count == 0) continue;
+                var wavFiles = Directory.GetFiles(subDir, "*.wav", SearchOption.AllDirectories)
+                    .OrderBy(f => {
+                        string filename = Path.GetFileNameWithoutExtension(f);
+                        return int.TryParse(filename, out int n) ? n : int.MaxValue;
+                    })
+                    .ToList();
+
+                if (wavFiles.Count == 0)
+                {
+                    Console.WriteLine($"[Warning] No .wav files found in {subDir}");
+                    continue;
+                }
 
                 double totalDuration = 0;
                 List<float> allSamples = new List<float>();
 
                 foreach (var wavFile in wavFiles)
                 {
-                    using (var reader = new AudioFileReader(wavFile))
+                    try
                     {
-                        totalDuration += reader.TotalTime.TotalSeconds;
-                        float[] buffer = new float[reader.Length / (reader.WaveFormat.BitsPerSample / 8)];
-                        int read = reader.Read(buffer, 0, buffer.Length);
-                        allSamples.AddRange(buffer.Take(read));
+                        using (var reader = new AudioFileReader(wavFile))
+                        {
+                            totalDuration += reader.TotalTime.TotalSeconds;
+                            float[] buffer = new float[reader.Length / (reader.WaveFormat.BitsPerSample / 8)];
+                            int read = reader.Read(buffer, 0, buffer.Length);
+                            allSamples.AddRange(buffer.Take(read));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[Error] Failed to read {wavFile}: {ex.Message}");
                     }
                 }
 
-                Console.WriteLine($"[Summary] Total Duration: {totalDuration:F2} seconds");
+                if (allSamples.Count == 0)
+                {
+                    Console.WriteLine($"[Warning] No valid audio data in {subDir}");
+                    continue;
+                }
+
+                Console.WriteLine($"[Summary] Total Samples: {allSamples.Count}, Total Duration: {totalDuration:F2} seconds");
 
                 // Process Spectrogram
                 string outputDir = Path.Combine(outputRootDir, dirName);
@@ -114,7 +137,9 @@ namespace AE_Spectrogram
                 Fourier.Forward(fftBuffer, FourierOptions.NoScaling);
 
                 float[] magnitudes = new float[freqBins];
-                float invFftSize = 2.0f / fftSize;
+                float invFftSize = 2.0f / fftSize; 
+
+                // dB gating: Noise Reduction
                 for (int m = 0; m < freqBins; m++)
                 {
                     double mag = fftBuffer[m].Magnitude * invFftSize;
