@@ -38,8 +38,7 @@ namespace AE_Spectrogram
         {
             string baseDir = AppContext.BaseDirectory;
             string configPath = Path.Combine(baseDir, "config", "Sensor_Interface", "MicrophoneInterfaceConfig.xml");
-            string inputRootDir = Path.GetFullPath(Path.Combine(baseDir, "../../../../DB_kunkuk"));
-            string outputRootDir = Path.GetFullPath(Path.Combine(baseDir, "../../../../CS_Output/spectrogram"));
+            string inputRootDir = Path.GetFullPath(Path.Combine(baseDir, "../../../../DB"));
 
             if (!File.Exists(configPath))
             {
@@ -106,7 +105,7 @@ namespace AE_Spectrogram
                 Console.WriteLine($"[Summary] Total Samples: {allSamples.Count}, Total Duration: {totalDuration:F2} seconds");
 
                 // Process Spectrogram
-                string outputDir = Path.Combine(outputRootDir, dirName);
+                string outputDir = Path.Combine(subDir, "Spectrogram");
                 if (!Directory.Exists(outputDir)) Directory.CreateDirectory(outputDir);
 
                 ProcessAndSaveSpectrogram(allSamples.ToArray(), config, outputDir);
@@ -170,7 +169,7 @@ namespace AE_Spectrogram
                             indexer[freqBins - 1 - y, x] = (byte)frame[y];
                         }
                     }
-                    string fileName = Path.Combine(outputDir, $"strip_{s:D4}.png");
+                    string fileName = Path.Combine(outputDir, $"{s:D8}.png");
                     Cv2.ImWrite(fileName, mat);
                 }
             }
